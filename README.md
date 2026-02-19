@@ -113,7 +113,7 @@ git push origin main
 5. Under **Branch**, choose `main` from the dropdown, then select `/docs` as the folder.
 6. Click **Save**.
 
-GitHub will show a banner: *"Your site is being published."*  
+GitHub will show a banner: *"Your site is being published."*
 After ~60 seconds the live URL appears: **https://wi287g.github.io/dashboard/**
 
 ### 3. Verify
