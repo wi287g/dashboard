@@ -100,9 +100,10 @@ def _request(method: str, path: str, payload: dict | None, token: str, dry_run: 
 
 def _get_all(path: str, token: str) -> list[dict]:
     results, page = [], 1
+    sep = "&" if "?" in path else "?"
     while True:
         req = urllib.request.Request(
-            f"{BASE}{path}?per_page=100&page={page}",
+            f"{BASE}{path}{sep}per_page=100&page={page}",
             headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
         )
         with urllib.request.urlopen(req, timeout=20) as r:
