@@ -1,0 +1,66 @@
+{
+  "_note": "PLACEHOLDER DATA — not verified. Keyed by 5-digit WI county FIPS. Each array entry: { year, amount } where amount is USD. Download real SCAAP award data from BJS (https://bjs.ojp.gov/programs/scaap) and process via scripts/merge_datasets.py.",
+  "55009": [
+    { "year": 2018, "amount": 48200  },
+    { "year": 2019, "amount": 61500  },
+    { "year": 2020, "amount": 33100  },
+    { "year": 2021, "amount": 52400  },
+    { "year": 2022, "amount": 79800  },
+    { "year": 2023, "amount": 95300  },
+    { "year": 2024, "amount": 88700  }
+  ],
+  "55025": [
+    { "year": 2018, "amount": 9100   },
+    { "year": 2019, "amount": 4200   },
+    { "year": 2020, "amount": 0      },
+    { "year": 2021, "amount": 0      },
+    { "year": 2022, "amount": 0      },
+    { "year": 2023, "amount": 0      },
+    { "year": 2024, "amount": 0      }
+  ],
+  "55059": [
+    { "year": 2018, "amount": 71000  },
+    { "year": 2019, "amount": 88500  },
+    { "year": 2020, "amount": 42000  },
+    { "year": 2021, "amount": 58000  },
+    { "year": 2022, "amount": 73500  },
+    { "year": 2023, "amount": 102000 },
+    { "year": 2024, "amount": 119000 }
+  ],
+  "55079": [
+    { "year": 2018, "amount": 28000  },
+    { "year": 2019, "amount": 19500  },
+    { "year": 2020, "amount": 8000   },
+    { "year": 2021, "amount": 11200  },
+    { "year": 2022, "amount": 14600  },
+    { "year": 2023, "amount": 15800  },
+    { "year": 2024, "amount": 9400   }
+  ],
+  "55101": [
+    { "year": 2018, "amount": 52000  },
+    { "year": 2019, "amount": 64000  },
+    { "year": 2020, "amount": 29000  },
+    { "year": 2021, "amount": 41000  },
+    { "year": 2022, "amount": 60000  },
+    { "year": 2023, "amount": 76000  },
+    { "year": 2024, "amount": 71000  }
+  ],
+  "55133": [
+    { "year": 2018, "amount": 83000  },
+    { "year": 2019, "amount": 112000 },
+    { "year": 2020, "amount": 49000  },
+    { "year": 2021, "amount": 68000  },
+    { "year": 2022, "amount": 95000  },
+    { "year": 2023, "amount": 141000 },
+    { "year": 2024, "amount": 158000 }
+  ],
+  "55139": [
+    { "year": 2018, "amount": 37000  },
+    { "year": 2019, "amount": 48000  },
+    { "year": 2020, "amount": 25000  },
+    { "year": 2021, "amount": 34000  },
+    { "year": 2022, "amount": 51000  },
+    { "year": 2023, "amount": 66000  },
+    { "year": 2024, "amount": 59000  }
+  ]
+}

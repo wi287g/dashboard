@@ -1,0 +1,4 @@
+# This file keeps the raw/ directory tracked by git.
+# The actual raw data files (HTML cache, CSVs from pipeline scripts) are
+# gitignored to avoid bloating the repo. They are regenerated on every
+# automated run via .github/workflows/update-data.yml.

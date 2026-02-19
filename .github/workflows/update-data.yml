@@ -1,0 +1,115 @@
+name: Update dashboard data
+
+on:
+  # Weekly on Monday at 06:00 UTC
+  schedule:
+    - cron: "0 6 * * 1"
+
+  # Allow manual runs from Actions tab
+  workflow_dispatch:
+    inputs:
+      year_min:
+        description: "Earliest year to include"
+        default: "2018"
+        required: false
+      year_max:
+        description: "Latest year to include (defaults to current year)"
+        default: ""
+        required: false
+      dry_run:
+        description: "Dry run (no commit)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write   # needed to commit updated JSON back to main
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # ── Checkout ────────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so git diff is meaningful
+
+      # ── Python setup ────────────────────────────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # ── Pipeline ─────────────────────────────────────────────────────────────
+      - name: Fetch ICE 287(g) list
+        run: |
+          python scripts/fetch_287g.py \
+            --out docs/data/raw/287g_wi.csv
+        continue-on-error: true   # keep previous data if upstream is unavailable
+
+      - name: Parse ACLU-WI reports
+        run: |
+          if [ -d reports/ ]; then
+            python scripts/parse_aclu_reports.py \
+              --input-dir reports/ \
+              --det-out  docs/data/raw/aclu_detainers.csv \
+              --scaap-out docs/data/raw/aclu_scaap.csv
+          else
+            echo "No reports/ directory found; skipping ACLU parse step."
+          fi
+        continue-on-error: true
+
+      - name: Merge datasets → dashboard JSONs
+        run: |
+          YEAR_MAX="${{ github.event.inputs.year_max }}"
+          YEAR_MAX="${YEAR_MAX:-$(date +%Y)}"
+          YEAR_MIN="${{ github.event.inputs.year_min }}"
+          YEAR_MIN="${YEAR_MIN:-2018}"
+
+          DRY_RUN_FLAG=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            DRY_RUN_FLAG="--dry-run"
+          fi
+
+          python scripts/merge_datasets.py \
+            --year-min "$YEAR_MIN" \
+            --year-max "$YEAR_MAX" \
+            $DRY_RUN_FLAG
+
+      # ── Commit & push ────────────────────────────────────────────────────────
+      - name: Check for changed data files
+        id: git-diff
+        run: |
+          git diff --quiet docs/data/ && echo "changed=false" >> "$GITHUB_OUTPUT" \
+            || echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push updated data
+        if: |
+          steps.git-diff.outputs.changed == 'true' &&
+          github.event.inputs.dry_run != 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/data/
+          git commit -m "chore(data): automated update $(date -u +'%Y-%m-%d')"
+          git push
+
+      - name: No changes detected
+        if: steps.git-diff.outputs.changed == 'false'
+        run: echo "Data files unchanged; nothing to commit."
+
+      # ── Failure notification ─────────────────────────────────────────────────
+      # Uncomment and configure to enable Slack/email on failure:
+      # - name: Notify on failure
+      #   if: failure()
+      #   uses: slackapi/slack-github-action@v1
+      #   with:
+      #     payload: '{"text": "wi287g/dashboard data update FAILED: ${{ github.run_url }}"}'
+      #   env:
+      #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

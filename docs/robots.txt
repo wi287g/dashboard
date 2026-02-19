@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://wi287g.github.io/dashboard/sitemap.xml

@@ -1,0 +1,13 @@
+# wi287g/dashboard Python dependencies
+# Install: pip install -r requirements.txt
+
+# HTTP fetching (fetch_287g.py)
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=5.1.0
+
+# PDF parsing (parse_aclu_reports.py)
+pdfplumber>=0.10.0
+
+# Data manipulation (all scripts)
+pandas>=2.2.0

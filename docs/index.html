@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+
+    <!-- ── Primary SEO ──────────────────────────────────────────────── -->
+    <title>Wisconsin 287(g) &amp; ICE Detainer Dashboard — County Map</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Interactive county-level map tracking ICE 287(g) agreements, detainer compliance, and SCAAP federal reimbursements across all 72 Wisconsin counties. Updated from public records."
+    />
+    <meta name="keywords" content="287g, ICE, detainers, Wisconsin, immigration enforcement, SCAAP, sheriff, county, deportation, MOA" />
+    <meta name="author" content="wi287g" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://wi287g.github.io/dashboard/" />
+
+    <!-- ── Theme color (Android Chrome, Safari pinned tab) ───────────── -->
+    <meta name="theme-color" content="#1f2933" />
+
+    <!-- ── Open Graph (Facebook, LinkedIn, Mastodon, iMessage, etc.) ── -->
+    <meta property="og:type"        content="website" />
+    <meta property="og:url"         content="https://wi287g.github.io/dashboard/" />
+    <meta property="og:site_name"   content="WI 287(g) Dashboard" />
+    <meta property="og:title"       content="Wisconsin 287(g) &amp; ICE Detainer Dashboard" />
+    <meta property="og:description" content="Interactive county-level map tracking ICE 287(g) agreements, detainer compliance, and SCAAP federal reimbursements across all 72 Wisconsin counties." />
+    <meta property="og:image"       content="https://wi287g.github.io/dashboard/img/social-preview.png" />
+    <meta property="og:image:width"  content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale"      content="en_US" />
+
+    <!-- ── Twitter / X Card ─────────────────────────────────────────── -->
+    <meta name="twitter:card"        content="summary_large_image" />
+    <meta name="twitter:site"        content="@wi287g" />
+    <meta name="twitter:title"       content="Wisconsin 287(g) &amp; ICE Detainer Dashboard" />
+    <meta name="twitter:description" content="Interactive county-level map tracking ICE 287(g) agreements, detainer compliance, and SCAAP federal reimbursements across Wisconsin." />
+    <meta name="twitter:image"       content="https://wi287g.github.io/dashboard/img/social-preview.png" />
+
+    <!-- ── JSON-LD structured data (Dataset) ────────────────────────── -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Dataset",
+      "name": "Wisconsin 287(g) & ICE Detainer Dashboard",
+      "description": "County-level data on ICE 287(g) agreements, detainer compliance, and SCAAP federal reimbursement payments across all 72 Wisconsin counties.",
+      "url": "https://wi287g.github.io/dashboard/",
+      "license": "https://creativecommons.org/licenses/by/4.0/",
+      "creator": {
+        "@type": "Organization",
+        "name": "wi287g",
+        "url": "https://github.com/wi287g"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "wi287g",
+        "url": "https://github.com/wi287g"
+      },
+      "keywords": ["287g", "ICE", "immigration enforcement", "Wisconsin", "detainers", "SCAAP", "county data"],
+      "spatialCoverage": {
+        "@type": "Place",
+        "name": "Wisconsin, United States",
+        "geo": {
+          "@type": "GeoShape",
+          "box": "42.49 -92.89 47.31 -86.25"
+        }
+      },
+      "temporalCoverage": "2018/..",
+      "distribution": [
+        {
+          "@type": "DataDownload",
+          "encodingFormat": "application/json",
+          "contentUrl": "https://wi287g.github.io/dashboard/data/287g_status.json"
+        },
+        {
+          "@type": "DataDownload",
+          "encodingFormat": "application/json",
+          "contentUrl": "https://wi287g.github.io/dashboard/data/detainers_by_county_year.json"
+        },
+        {
+          "@type": "DataDownload",
+          "encodingFormat": "application/json",
+          "contentUrl": "https://wi287g.github.io/dashboard/data/scaap_by_county_year.json"
+        }
+      ]
+    }
+    </script>
+
+    <!-- ── Favicon ───────────────────────────────────────────────────── -->
+    <link rel="icon" href="img/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="img/favicon.png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="img/apple-touch-icon.png" />
+
+    <!-- ── Stylesheets ──────────────────────────────────────────────── -->
+    <link rel="stylesheet" href="css/styles.css" />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+  </head>
+  <body>
+    <header>
+      <div class="header-inner">
+        <h1>Wisconsin 287(g) &amp; ICE Detainer Dashboard</h1>
+        <p class="subtitle">
+          County-level status of ICE cooperation — 287(g) agreements, detainer
+          compliance, and federal SCAAP reimbursements.
+        </p>
+      </div>
+      <div class="header-meta">
+        <span id="last-updated-label">Data last updated: —</span>
+        <a href="#about" class="about-link">About &amp; sources</a>
+      </div>
+    </header>
+
+    <div id="loading-overlay" aria-live="polite">
+      <span>Loading data…</span>
+    </div>
+
+    <main>
+      <section id="map-section" aria-label="County map">
+        <div id="toolbar">
+          <label for="status-filter">Filter by status:</label>
+          <select id="status-filter">
+            <option value="all">All counties</option>
+            <option value="287g">287(g) agreement</option>
+            <option value="detainers">Detainers / cooperation</option>
+            <option value="none">No known cooperation</option>
+            <option value="unknown">Unknown</option>
+          </select>
+
+          <label for="county-search">Search county:</label>
+          <input
+            id="county-search"
+            type="search"
+            placeholder="e.g. Dane"
+            autocomplete="off"
+          />
+        </div>
+
+        <div id="map" role="application" aria-label="Wisconsin county map"></div>
+        <div id="map-legend" aria-label="Map legend"></div>
+      </section>
+
+      <aside id="sidebar" aria-label="County details">
+        <section id="county-summary-section">
+          <h2>County details</h2>
+          <div id="county-summary">
+            <p class="prompt">Click or tap a county to see details.</p>
+          </div>
+        </section>
+
+        <section id="charts-section">
+          <div id="charts">
+            <canvas id="detainersChart" aria-label="ICE detainers by year"></canvas>
+            <canvas id="scaapChart" aria-label="SCAAP payments by year"></canvas>
+          </div>
+          <p id="no-chart-data" class="muted" hidden>
+            No time-series data available for this county yet.
+          </p>
+        </section>
+
+        <section id="about" class="about-box">
+          <h2>About the data</h2>
+          <p>
+            <strong>287(g)</strong> — Sheriff/police agencies that signed a
+            Memorandum of Agreement (MOA) with ICE to perform immigration
+            enforcement functions from local jails or in the field.
+          </p>
+          <p>
+            <strong>Detainers</strong> — Civil requests from ICE asking a
+            jurisdiction to hold someone beyond their lawful release. Honoring
+            detainers without 287(g) MOAs is noted separately.
+          </p>
+          <p>
+            <strong>SCAAP</strong> — State Criminal Alien Assistance Program
+            payments: federal reimbursements to localities that incarcerated
+            people with certain immigration statuses.
+          </p>
+          <p class="muted">
+            Data is best-effort and may lag real-time changes. Sources include
+            public ICE 287(g) lists, ACLU-WI reports, open-records responses,
+            and federal BJS SCAAP award data. Unknown or missing values are
+            shown explicitly. See
+            <a
+              href="https://github.com/wi287g/dashboard"
+              target="_blank"
+              rel="noopener"
+              >README</a
+            >
+            for methodology.
+          </p>
+        </section>
+      </aside>
+    </main>
+
+    <footer>
+      <p>
+        Sources: ICE 287(g) MOA list · ACLU-WI reports · BJS SCAAP awards ·
+        Wisconsin open-records responses.
+        <a
+          href="https://github.com/wi287g/dashboard"
+          target="_blank"
+          rel="noopener"
+          >GitHub</a
+        >
+        · Data and code: see README for licenses.
+      </p>
+    </footer>
+
+    <!-- Leaflet -->
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- App modules — order matters -->
+    <script src="js/config.js"></script>
+    <script src="js/dataLoader.js"></script>
+    <script src="js/map.js"></script>
+    <script src="js/charts.js"></script>
+    <script src="js/main.js"></script>
+  </body>
+</html>

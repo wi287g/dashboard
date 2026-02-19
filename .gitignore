@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.venv/
+env/
+.env
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Raw pipeline data cache (large; not committed)
+# Processed JSONs in docs/data/ ARE committed.
+docs/data/raw/*
+!docs/data/raw/.gitkeep
+
+# Unprocessed report PDFs/CSVs for local runs
+reports/
+
+# Jupyter
+.ipynb_checkpoints/
