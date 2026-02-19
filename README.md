@@ -94,58 +94,6 @@ dashboard/
 
 ---
 
-## GitHub Pages deployment (step by step)
-
-### 1. Push the `docs/` folder to `main`
-Everything in `docs/` is the static site. GitHub Pages will serve it directly.
-
-```bash
-git add .
-git commit -m "chore: initial scaffold"
-git push origin main
-```
-
-### 2. Enable GitHub Pages
-1. Go to **https://github.com/wi287g/dashboard** (the repo on GitHub).
-2. Click **Settings** (top tab row of the repo, not your profile).
-3. In the left sidebar, click **Pages** (under "Code and automation").
-4. Under **Build and deployment → Source**, select **Deploy from a branch**.
-5. Under **Branch**, choose `main` from the dropdown, then select `/docs` as the folder.
-6. Click **Save**.
-
-GitHub will show a banner: *"Your site is being published."*
-After ~60 seconds the live URL appears: **https://wi287g.github.io/dashboard/**
-
-### 3. Verify
-- Open https://wi287g.github.io/dashboard/ — you should see the map load.
-- Open browser DevTools → Network — confirm `counties.geojson`, `287g_status.json`,
-  `detainers_by_county_year.json`, and `scaap_by_county_year.json` all return **200**.
-- Open Console — confirm no JS errors.
-
-### 4. Custom domain (optional)
-If you have a domain (e.g. `wi287g.org`):
-1. In repo Settings → Pages → Custom domain, enter `wi287g.org` (or `map.wi287g.org`).
-2. Add a CNAME DNS record at your registrar pointing `wi287g.org` → `wi287g.github.io`.
-   Or for a subdomain: CNAME `map` → `wi287g.github.io`.
-3. Wait for DNS propagation (minutes to hours), then tick **Enforce HTTPS**.
-4. Create `docs/CNAME` (a file with just the domain name, no `https://`):
-   ```
-   wi287g.org
-   ```
-   Commit and push — Pages will pick it up automatically.
-
-### 5. Repo social preview image
-In repo → **Settings → Social preview**, upload the `docs/img/social-preview.png`
-(1200 × 630 px). This is what appears when someone shares the repo link on social
-media — separate from the og:image on the live site.
-
-### 6. Ongoing deploys
-Every `git push` to `main` redeploys the site automatically. The GitHub Actions
-data pipeline (`.github/workflows/update-data.yml`) commits updated JSON files,
-which then trigger a redeploy. No additional CI configuration needed.
-
----
-
 ## Running the pipeline locally
 
 ```bash

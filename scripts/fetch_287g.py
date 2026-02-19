@@ -7,27 +7,31 @@ merge step.
 
 Sources
 -------
-  - ICE 287(g) participant list (HTML table):
+  - ICE 287(g) participant list (XLSX, discovered via the ICE page):
     https://www.ice.gov/identify-and-arrest/287g
-  - Fallback: manually downloaded CSV placed at data/raw/287g_raw.csv
+    The page links to a file like:
+      /doclib/about/offices/ero/287g/participatingAgencies<date>.xlsx
+  - Fallback: manually downloaded XLSX placed at docs/data/raw/287g_raw.xlsx
 
 Output
 ------
-  data/raw/287g_wi.csv
+  docs/data/raw/287g_wi.csv
     Columns: fips, county_name, agency, model, effective_date, status
 
 Usage
 -----
   python scripts/fetch_287g.py [--out docs/data/raw/287g_wi.csv]
+  python scripts/fetch_287g.py --force-cache   # re-parse cached XLSX, no HTTP
 
 Dependencies
 ------------
-  pip install requests beautifulsoup4 lxml
+  pip install requests beautifulsoup4 lxml pandas openpyxl
 
 Notes
 -----
-  - ICE can change page structure or move PDFs without notice; add
-    --force-cache to skip fetch and use a previously saved raw file.
+  - ICE can change page structure without notice. The script searches the page
+    HTML for any .xlsx link matching 'participatingAgencies', then downloads it.
+  - Use --force-cache to skip the HTTP fetch and reparse the saved XLSX.
   - FIPS look-up uses the WI county name → FIPS map in scripts/wi_fips.py.
   - Run idempotently; overwrites output each time.
 """
@@ -40,8 +44,11 @@ import sys
 from datetime import date
 from pathlib import Path
 
+import re
+
 import requests
 from bs4 import BeautifulSoup
+import pandas as pd
 
 from wi_fips import WI_COUNTY_FIPS, normalize_county_name
 
@@ -49,11 +56,21 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
 ICE_287G_URL = "https://www.ice.gov/identify-and-arrest/287g"
+ICE_BASE_URL = "https://www.ice.gov"
 HEADERS = {
     "User-Agent": (
         "wi287g-dashboard/0.1 "
         "(public research; https://github.com/wi287g/dashboard)"
     )
+}
+# Column name aliases: keys are lowercase normalised; values are canonical names
+COL_ALIASES = {
+    "state":            ["state"],
+    "agency":           ["law enforcement agency", "agency", "participating agency", "lea"],
+    "county":           ["county"],
+    "model":            ["support type", "model", "287(g) model", "program model", "moa type"],
+    "effective_date":   ["signed", "effective date", "date", "moa effective date"],
+    "status":           ["status", "active"],
 }
 
 
@@ -64,34 +81,77 @@ def fetch_html(url: str, timeout: int = 30) -> str:
     return resp.text
 
 
-def parse_287g_table(html: str) -> list[dict]:
-    """
-    Parse the ICE 287(g) participant HTML table.
-
-    The table structure may change; this targets the first <table> on the
-    page. Adjust the selector if ICE redesigns the page.
-
-    Returns list of dicts with keys:
-        state, agency, model, effective_date, status
-    """
+def find_xlsx_url(html: str) -> str | None:
+    """Search page HTML for a participatingAgencies*.xlsx link."""
     soup = BeautifulSoup(html, "lxml")
-    table = soup.find("table")
-    if not table:
-        raise RuntimeError("Could not find a <table> on the ICE 287(g) page. "
-                           "The page structure may have changed.")
+    pattern = re.compile(r'participatingAgencies.*?\.xlsx', re.I)
+    for tag in soup.find_all("a", href=True):
+        href = tag["href"]
+        if pattern.search(href):
+            if href.startswith("http"):
+                return href
+            return ICE_BASE_URL + href
+    # Fallback: regex directly on raw HTML (handles JS-rendered or escaped hrefs)
+    match = re.search(r'["\']([^"\']*participatingAgencies[^"\']*\.xlsx)["\']', html, re.I)
+    if match:
+        path = match.group(1)
+        return path if path.startswith("http") else ICE_BASE_URL + path
+    return None
 
-    headers = [th.get_text(strip=True).lower() for th in table.find_all("th")]
-    log.debug("Table headers: %s", headers)
+
+def download_xlsx(url: str, dest: Path, timeout: int = 60) -> None:
+    log.info("Downloading XLSX: %s", url)
+    resp = requests.get(url, headers=HEADERS, timeout=timeout, stream=True)
+    resp.raise_for_status()
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with dest.open("wb") as fh:
+        for chunk in resp.iter_content(chunk_size=65536):
+            fh.write(chunk)
+    log.info("Saved XLSX → %s (%d KB)", dest, dest.stat().st_size // 1024)
+
+
+def _resolve_col(df_cols_lower: dict[str, str], canonical: str) -> str | None:
+    """Return the actual DataFrame column name for a canonical field."""
+    for alias in COL_ALIASES.get(canonical, [canonical]):
+        if alias in df_cols_lower:
+            return df_cols_lower[alias]
+    return None
+
+
+def parse_xlsx(xlsx_path: Path) -> list[dict]:
+    """Parse the ICE participating-agencies XLSX into a list of row dicts."""
+    df = pd.read_excel(xlsx_path, engine="openpyxl", dtype=str)
+    df.columns = [str(c).strip() for c in df.columns]
+    log.debug("XLSX columns: %s", list(df.columns))
+
+    # Build lower-case → real-name map for flexible column lookup
+    cols_lower = {c.lower(): c for c in df.columns}
+
+    state_col   = _resolve_col(cols_lower, "state")
+    agency_col  = _resolve_col(cols_lower, "agency")
+    county_col  = _resolve_col(cols_lower, "county")
+    model_col   = _resolve_col(cols_lower, "model")
+    eff_col     = _resolve_col(cols_lower, "effective_date")
+    status_col  = _resolve_col(cols_lower, "status")
+
+    if not state_col:
+        log.warning("Could not find 'state' column. Available: %s", list(df.columns))
+    if not agency_col:
+        log.warning("Could not find 'agency' column. Available: %s", list(df.columns))
 
     rows = []
-    for tr in table.find("tbody").find_all("tr"):
-        cells = [td.get_text(strip=True) for td in tr.find_all("td")]
-        if len(cells) < len(headers):
-            continue
-        row = dict(zip(headers, cells))
+    for _, r in df.iterrows():
+        row = {
+            "state":          str(r[state_col]).strip()  if state_col  else "",
+            "agency":         str(r[agency_col]).strip() if agency_col else "",
+            "county_field":   str(r[county_col]).strip() if county_col else "",
+            "model":          str(r[model_col]).strip()  if model_col  else "",
+            "effective_date": str(r[eff_col]).strip()    if eff_col    else "",
+            "status":         str(r[status_col]).strip() if status_col else "active",
+        }
         rows.append(row)
 
-    log.info("Parsed %d rows from ICE table", len(rows))
+    log.info("Parsed %d rows from XLSX", len(rows))
     return rows
 
 
@@ -105,20 +165,30 @@ def filter_wisconsin(rows: list[dict]) -> list[dict]:
         if state not in ("WI", "WISCONSIN"):
             continue
 
-        agency = row.get("agency", row.get("participating agency", "")).strip()
-        model  = row.get("model", row.get("287(g) model", "")).strip()
-        eff_dt = row.get("effective date", row.get("date", "")).strip()
-        status = row.get("status", "active").strip().lower()
+        agency  = row.get("agency", "").strip()
+        model   = row.get("model", "").strip()
+        eff_dt  = row.get("effective_date", "").strip()
+        # Normalise "2025-01-01 00:00:00" → "2025-01-01"
+        if " " in eff_dt:
+            eff_dt = eff_dt.split(" ")[0]
+        status  = row.get("status", "active").strip().lower()
+        if not status or status == "nan":
+            status = "active"
 
-        county_norm = normalize_county_name(agency)
+        # Prefer COUNTY field for FIPS lookup; fall back to agency name
+        county_raw = row.get("county_field", "").strip()
+        county_norm = normalize_county_name(county_raw) if county_raw and county_raw != "nan" \
+                      else normalize_county_name(agency)
         fips = WI_COUNTY_FIPS.get(county_norm)
         if not fips:
-            not_found.append(agency)
+            # Second attempt: try agency name directly
+            fips = WI_COUNTY_FIPS.get(normalize_county_name(agency))
+        if not fips:
+            not_found.append(f"{agency} (county_field={county_raw!r})")
             log.warning("Could not resolve FIPS for agency: %s", agency)
-            fips = ""
 
         wi_rows.append({
-            "fips":           fips,
+            "fips":           fips or "",
             "county_name":    county_norm,
             "agency":         agency,
             "model":          model,
@@ -163,40 +233,62 @@ def main(argv=None):
     parser.add_argument(
         "--force-cache",
         action="store_true",
-        help="Skip HTTP fetch; load from --cache-path instead.",
+        help="Skip HTTP fetch; reparse the cached XLSX file.",
     )
     parser.add_argument(
-        "--cache-path",
-        default="docs/data/raw/287g_raw.html",
-        help="Cached HTML file path for --force-cache.",
+        "--xlsx-cache",
+        default="docs/data/raw/287g_raw.xlsx",
+        help="Cached XLSX path (written on fetch, read when --force-cache).",
+    )
+    parser.add_argument(
+        "--html-cache",
+        default="docs/data/raw/ice_287g_raw.html",
+        help="Cached HTML of the ICE 287(g) page (written on fetch).",
     )
     args = parser.parse_args(argv)
 
+    xlsx_cache = Path(args.xlsx_cache)
+
     if args.force_cache:
-        cache = Path(args.cache_path)
-        if not cache.exists():
-            log.error("Cache file not found: %s", cache)
+        if not xlsx_cache.exists():
+            log.error("XLSX cache not found: %s — run without --force-cache first.", xlsx_cache)
             sys.exit(1)
-        html = cache.read_text(encoding="utf-8")
-        log.info("Using cached HTML from %s", cache)
+        log.info("--force-cache: reusing %s", xlsx_cache)
     else:
-        try:
-            html = fetch_html(ICE_287G_URL)
-            # Save cache for debugging
-            cache = Path(args.cache_path)
-            cache.parent.mkdir(parents=True, exist_ok=True)
-            cache.write_text(html, encoding="utf-8")
-        except Exception as exc:
-            log.error("Fetch failed: %s", exc)
-            # If cached version exists, fall back
-            cache = Path(args.cache_path)
-            if cache.exists():
-                log.warning("Using stale cache: %s", cache)
-                html = cache.read_text(encoding="utf-8")
-            else:
+        # 1. Fetch the ICE page (use saved HTML cache if it exists)
+        html_cache = Path(args.html_cache)
+        if html_cache.exists():
+            log.info("Using existing HTML cache: %s", html_cache)
+            html = html_cache.read_text(encoding="utf-8")
+        else:
+            try:
+                html = fetch_html(ICE_287G_URL)
+                html_cache.parent.mkdir(parents=True, exist_ok=True)
+                html_cache.write_text(html, encoding="utf-8")
+            except Exception as exc:
+                log.error("Page fetch failed: %s", exc)
                 sys.exit(1)
 
-    rows = parse_287g_table(html)
+        # 2. Find and download the participating-agencies XLSX
+        xlsx_url = find_xlsx_url(html)
+        if not xlsx_url:
+            log.error(
+                "Could not find a participatingAgencies*.xlsx link on the ICE page.\n"
+                "The page may have changed. Check %s and update find_xlsx_url().",
+                ICE_287G_URL,
+            )
+            sys.exit(1)
+
+        try:
+            download_xlsx(xlsx_url, xlsx_cache)
+        except Exception as exc:
+            if xlsx_cache.exists():
+                log.warning("XLSX download failed (%s); falling back to cached %s", exc, xlsx_cache)
+            else:
+                log.error("XLSX download failed and no cache exists: %s", exc)
+                sys.exit(1)
+
+    rows = parse_xlsx(xlsx_cache)
     wi_rows = filter_wisconsin(rows)
     write_csv(wi_rows, Path(args.out))
 
